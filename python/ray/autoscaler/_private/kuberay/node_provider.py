@@ -133,6 +133,29 @@ def replace_patch(path: str, value: Any) -> Dict[str, Any]:
     return {"op": "replace", "path": path, "value": value}
 
 
+def load_k8s_headers() -> Dict[str, str]:
+    """
+    Loads headers needed to access K8s resources.
+
+    Returns: Headers with K8s access token
+    """
+    with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as secret:
+        token = secret.read()
+
+    return {
+        "Authorization": "Bearer " + token,
+    }
+
+
+def load_k8s_certificate_path() -> str:
+    """
+    Loads the certificate path needed to access K8s resources.
+    
+    Returns: Path to certificate
+    """
+    return "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+
 def load_k8s_secrets() -> Tuple[Dict[str, str], str]:
     """
     Loads secrets needed to access K8s resources.
@@ -212,7 +235,7 @@ class KuberayNodeProvider(BatchingNodeProvider):  # type: ignore
         self.namespace = provider_config["namespace"]
         self.cluster_name = cluster_name
 
-        self.headers, self.verify = load_k8s_secrets()
+        self.verify = load_k8s_certificate_path()
 
         assert (
             provider_config.get(WORKER_LIVENESS_CHECK_KEY, True) is False
@@ -424,7 +447,7 @@ class KuberayNodeProvider(BatchingNodeProvider):  # type: ignore
     def _get(self, path: str) -> Dict[str, Any]:
         """Wrapper for REST GET of resource with proper headers."""
         url = url_from_resource(namespace=self.namespace, path=path)
-        result = requests.get(url, headers=self.headers, verify=self.verify)
+        result = requests.get(url, headers=load_k8s_headers(), verify=self.verify)
         if not result.status_code == 200:
             result.raise_for_status()
         return result.json()
@@ -435,7 +458,7 @@ class KuberayNodeProvider(BatchingNodeProvider):  # type: ignore
         result = requests.patch(
             url,
             json.dumps(payload),
-            headers={**self.headers, "Content-type": "application/json-patch+json"},
+            headers={**load_k8s_headers(), "Content-type": "application/json-patch+json"},
             verify=self.verify,
         )
         if not result.status_code == 200:

@@ -50,7 +50,8 @@ class AutoscalingConfigProducer:
     """
 
     def __init__(self, ray_cluster_name, ray_cluster_namespace):
-        self._headers, self._verify = node_provider.load_k8s_secrets()
+        self._verify = node_provider.load_k8s_certificate_path()
+        node_provider.load_k8s_certificate_path()
         self._ray_cr_url = node_provider.url_from_resource(
             namespace=ray_cluster_namespace, path=f"rayclusters/{ray_cluster_name}"
         )
@@ -83,7 +84,7 @@ class AutoscalingConfigProducer:
 
     def _fetch_ray_cr_from_k8s(self) -> Dict[str, Any]:
         result = requests.get(
-            self._ray_cr_url, headers=self._headers, verify=self._verify
+            self._ray_cr_url, headers=node_provider.load_k8s_headers(), verify=self._verify
         )
         if not result.status_code == 200:
             result.raise_for_status()
